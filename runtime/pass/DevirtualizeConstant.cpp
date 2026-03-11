@@ -5,6 +5,7 @@
 #include <llvm/IR/Constant.h>
 #include <llvm/IR/Constants.h>
 #include <llvm/IR/InstIterator.h>
+#include <llvm/IR/InstrTypes.h>
 #include <llvm/IR/IRBuilder.h>
 #include <llvm/Linker/Linker.h>
 #include <llvm/ADT/SmallVector.h>
@@ -88,7 +89,8 @@ bool Devirtualize(IIter it, IIter end) {
 
     // that's generally the load from the table
     for(User* U : VTable->users()) {
-      ConstantExpr* Int2Ptr = dyn_cast<ConstantExpr>(U->stripPointerCasts());
+      Value* Stripped = U->stripPointerCasts();
+      ConstantExpr* Int2Ptr = dyn_cast<ConstantExpr>(Stripped);
       if(!Int2Ptr)
         continue;
 
@@ -97,7 +99,7 @@ bool Devirtualize(IIter it, IIter end) {
         if(!CalledPtr)
           continue;
 
-        Type* ExpectedTy = CalledPtr->getType()->getContainedType(0);
+        Type* ExpectedTy = CalledPtr->getType()->getPointerElementType();
         Constant* Called = ConstantExpr::getPointerCast(F, ExpectedTy);
 
         SmallVector<User*, 4> Users{CalledPtr->user_begin(), CalledPtr->user_end()};
@@ -132,35 +134,41 @@ bool CastCallWithPointerCasts(FunctionType* CalledTy, FunctionType* UncastedTy) 
 
 template<class IIter>
 void RecastCalls(IIter it, IIter end) {
-  for(;it != end;) {
-    CallSite CS{&*it++};
-    if(!CS)
+  for(;it != end; ++it) {
+    auto* CB = dyn_cast<CallBase>(&*it);
+    if(!CB)
       continue;
 
-    Value* Called = CS.getCalledValue();
+    Value* Called = CB->getCalledOperand();
     Value* Uncasted = Called->stripPointerCasts();
     if(Called == Uncasted)
       continue;
 
-    FunctionType* CalledTy = cast<FunctionType>(Called->getType()->getContainedType(0));
-    FunctionType* UncastedTy = cast<FunctionType>(Uncasted->getType()->getContainedType(0));
+    auto* CalledPtrTy = dyn_cast<PointerType>(Called->getType());
+    auto* UncastedPtrTy = dyn_cast<PointerType>(Uncasted->getType());
+    if(!CalledPtrTy || !UncastedPtrTy)
+      continue;
+
+    FunctionType* CalledTy = dyn_cast<FunctionType>(CalledPtrTy->getPointerElementType());
+    FunctionType* UncastedTy = dyn_cast<FunctionType>(UncastedPtrTy->getPointerElementType());
+    if(!CalledTy || !UncastedTy)
+      continue;
 
     if(!CastCallWithPointerCasts(CalledTy, UncastedTy))
       continue;
 
-    CS.setCalledFunction(Uncasted);
-    CS.mutateFunctionType(UncastedTy);
+    CB->setCalledOperand(Uncasted);
 
     // cast every pointer argument to the expected type
-    IRBuilder<> B(CS.getInstruction());
+    IRBuilder<> B(CB);
 
-    size_t N = CS.getNumArgOperands();
+    size_t N = CB->arg_size();
     for(unsigned i = 0; i != N; ++i) {
-      Value* Arg = CS.getArgOperand(i);
+      Value* Arg = CB->getArgOperand(i);
       Type* ArgTy = Arg->getType();
       Type* UncTy = UncastedTy->getParamType(i);
       if(ArgTy->isPointerTy() && ArgTy != UncTy)
-        CS.setArgument(i, B.CreatePointerCast(Arg, UncTy, Arg->getName() + ".recast_calls"));
+        CB->setArgOperand(i, B.CreatePointerCast(Arg, UncTy, Arg->getName() + ".recast_calls"));
     }
   }
 }

@@ -5,6 +5,7 @@
 #include <llvm/IR/InstIterator.h>
 #include <llvm/IR/IRBuilder.h>
 #include <llvm/IR/DebugInfo.h>
+#include <llvm/IR/InstrTypes.h>
 
 #include <llvm/IR/LegacyPassManager.h>
 
@@ -229,8 +230,8 @@ namespace easy {
     void deduceObjectsToJIT(Module &M) {
       for(Function &EasyJitFun : compilerInterface(M)) {
         for(User* U : EasyJitFun.users()) {
-          if(CallSite CS{U}) {
-            for(Value* O : CS.args()) {
+          if(auto* CB = dyn_cast<CallBase>(U)) {
+            for(Value* O : CB->args()) {
               O = O->stripPointerCastsNoFollowAliases();
               MayAliasTracer Tracer(O);
               for(GlobalObject& GO: M.global_objects()) {

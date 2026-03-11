@@ -80,8 +80,8 @@ namespace easy {
                                 Value* Buf, Value* ByVal, Type* CurLevelTy, SmallVectorImpl<Value*> &GEPOffset) {
       StructType* Struct = dyn_cast<StructType>(CurLevelTy);
       if(!Struct) {
-        Value* ArgPtr = B.CreateGEP(ByVal, GEPOffset);
-        Value* Argument = B.CreateLoad(ArgPtr);
+        Value* ArgPtr = B.CreateGEP(CurLevelTy, ByVal, GEPOffset);
+        Value* Argument = B.CreateLoad(CurLevelTy, ArgPtr);
 
         Value* Ptr = B.CreateConstGEP1_32(Buf, Offset);
         B.CreateStore(Argument, Ptr);
@@ -124,7 +124,9 @@ namespace easy {
       DataLayout const &DL = M.getDataLayout();
 
       FunctionType *FTy = F->getFunctionType();
-      StructType *STy = F->arg_begin()->hasByValAttr() ? cast<StructType>(FTy->getParamType(0)->getContainedType(0)) : nullptr;
+      StructType *STy = nullptr;
+      if(F->arg_begin()->hasByValAttr())
+        STy = dyn_cast<StructType>(F->arg_begin()->getParamByValType());
       bool PassedAsAPointer = STy;
 
       Type* I32 = Type::getInt32Ty(C);
