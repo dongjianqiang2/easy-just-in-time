@@ -1,21 +1,11 @@
-add_llvm_loadable_module(EasyJitPass
-  RegisterPasses.cpp
+add_llvm_library(EasyJitPass
   Easy.cpp
   Layout.cpp
   Utils.cpp
   MayAliasTracer.cpp
-  PLUGIN_TOOL clang
-  )
-
-set(EASY_JIT_PASS ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/EasyJitPass${CMAKE_SHARED_LIBRARY_SUFFIX} PARENT_SCOPE)
+  RegisterPasses.cpp
+)
 
 install(TARGETS EasyJitPass
+        ARCHIVE DESTINATION lib
         LIBRARY DESTINATION lib)
-
-# Get proper shared-library behavior (where symbols are not necessarily
-# resolved when the shared library is linked) on OS X.
-if(APPLE)
-    set_target_properties(EasyJitPass PROPERTIES
-        LINK_FLAGS "-undefined dynamic_lookup"
-    )
-endif(APPLE)

@@ -1,4 +1,5 @@
-cmake_minimum_required(VERSION 3.4.3)
+cmake_minimum_required(VERSION 3.16)
+project(EasyJit LANGUAGES C CXX)
 
 if("${CMAKE_CURRENT_SOURCE_DIR}" STREQUAL "${CMAKE_CURRENT_BINARY_DIR}")
   message(FATAL_ERROR "Do not set the build directory equal to the source directory!")
@@ -11,7 +12,10 @@ elseif (${CMAKE_HOST_SYSTEM_PROCESSOR} MATCHES "aarch64")
 	add_definitions(-D_AARCH64)
 endif()
 
-find_package(LLVM 6.0 REQUIRED CONFIG)
+find_package(LLVM REQUIRED CONFIG)
+if (LLVM_PACKAGE_VERSION VERSION_LESS 15)
+  message(FATAL_ERROR "LLVM 15 or newer is required")
+endif()
 message(STATUS "Found LLVM ${LLVM_PACKAGE_VERSION}")
 message(STATUS "Using LLVMConfig.cmake in ${LLVM_DIR}")
 message(STATUS "LLVM Root: ${LLVM_TOOLS_BINARY_DIR}")
@@ -26,7 +30,7 @@ include_directories(${LLVM_INCLUDE_DIRS})
 link_directories(${LLVM_LIBRARY_DIRS})
 include_directories(include)
 
-set(CMAKE_CXX_STANDARD 14)
+set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/bin)
@@ -47,8 +51,9 @@ add_subdirectory(cmake)
 add_subdirectory(include)
 add_subdirectory(pass)
 add_subdirectory(runtime)
+add_subdirectory(tools)
 
-add_custom_target(easy-jit-core DEPENDS EasyJitPass EasyJitRuntime)
+add_custom_target(easy-jit-core DEPENDS EasyJitPass EasyJitRuntime easy-jit-opt)
 
 add_subdirectory(doc)
 add_subdirectory(benchmark)
