@@ -18,13 +18,13 @@ Building
 First, install clang and LLVM.
 
 ```bash
-apt install llvm-6.0-dev llvm-6.0-tools clang-6.0
+apt install llvm-15-dev llvm-15-tools clang-15
 ```
 
 Then, configure and compile the project.
 
 ```bash
-cmake -DLLVM_DIR=/usr/lib/llvm-6.0/cmake <path_to_easy_jit_src>
+cmake -DLLVM_DIR=/usr/lib/llvm-15/lib/cmake/llvm <path_to_easy_jit_src>
 cmake --build .
 ```
 
@@ -53,10 +53,9 @@ Basic usage
 
 ### Compiling my project with Easy::Jit
 
-Since the Easy::Jit library relies on assistance from the compiler, its
-mandatory to load a compiler plugin in order to use it.
-The flag ```-Xclang -load -Xclang <path_to_easy_jit_build>/bin/EasyJitPass.so```
-loads the plugin.
+Since Easy::Jit relies on compiler assistance, IR/bitcode should be preprocessed
+by the standalone optimization pass tool built with this project.
+The executable is available as ```<path_to_easy_jit_build>/bin/easy-jit-opt```.
 
 The included headers require C++14 support, and remember to add the include directories!
 Use ```--std=c++14 -I<path_to_easy_jit_src>/cpplib/include```.
@@ -67,9 +66,12 @@ Finaly, the binary must be linked against the Easy::Jit runtime library, using
 Putting all together we get the command bellow.
 
 ```bash
-clang++-6.0 --std=c++14 <my_file.cpp> \
-  -Xclang -load -Xclang /path/to/easy/jit/build/bin/bin/EasyJitPass.so \
-  -I<path_to_easy_jit_src>/cpplib/include \
+clang++-15 --std=c++14 -emit-llvm -c <my_file.cpp> -o my_file.bc \
+  -I<path_to_easy_jit_src>/cpplib/include
+
+<path_to_easy_jit_build>/bin/easy-jit-opt my_file.bc -o my_file.easyjit.bc
+
+clang++-15 my_file.easyjit.bc \
   -L<path_to_easy_jit_build>/bin -lEasyJitRuntime
 ```
 
